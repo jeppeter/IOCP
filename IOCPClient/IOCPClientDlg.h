@@ -62,7 +62,11 @@ protected:
 	afx_msg void OnSend();
 	afx_msg void OnDisconnect();
 	afx_msg void OnClickClientlist(NMHDR* pNMHDR, LRESULT* pResult);
+#ifdef _M_X64
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
+#else
 	afx_msg void OnTimer(UINT nIDEvent);
+#endif
 	afx_msg void OnFlood();
 	afx_msg void OnStopstart();
 	afx_msg void OnSettings();

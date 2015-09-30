@@ -48,7 +48,7 @@ BOOL CIOCPClientApp::InitInstance()
 
 	CIOCPClientDlg dlg;
 	m_pMainWnd = &dlg;
-	int nResponse = dlg.DoModal();
+	int nResponse = (int)dlg.DoModal();
 	if (nResponse == IDOK)
 	{
 		// TODO: Place code here to handle when the dialog is

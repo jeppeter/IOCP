@@ -86,7 +86,7 @@ void MyIOCP::NotifyNewConnection(ClientContext *pcontext)
 {
 	unsigned int *pBuffer= new unsigned int;
 	if(pBuffer)
-	*pBuffer=pcontext->m_Socket;
+	*pBuffer=(unsigned int)pcontext->m_Socket;
 	::PostMessage(m_hWnd, WM_NEW_CONNECTION, 0, (LPARAM) pBuffer);
 }
 
@@ -94,7 +94,7 @@ void MyIOCP::NotifyDisconnectedClient(ClientContext *pContext)
 {
 	unsigned int *pBuffer= new unsigned int;
 	if(pBuffer)
-	*pBuffer=pContext->m_Socket;
+	*pBuffer=(unsigned int)pContext->m_Socket;
 	::PostMessage(m_hWnd, WM_CLIENTDISCONNECTED, 0, (LPARAM) pBuffer);	
 }
 
@@ -252,7 +252,7 @@ BOOL MyIOCP::BuildPackageAndSend(ClientContext *pContext, CString sText)
 			CString msg;
 			msg.Format(_T("Could not allocate memory ASend: %s"),ErrorCode2Text(WSAGetLastError()));
 			AppendLog(msg);
-		DisconnectClient(pContext->m_Socket);
+		DisconnectClient((unsigned int)pContext->m_Socket);
 			return FALSE;
 		}
 	return FALSE;	
@@ -338,7 +338,7 @@ BOOL MyIOCP::BuildStartFileTransferPackageAndSend(ClientContext *pContext)
 		CString msg;
 		msg.Format(_T("Could not allocate memory ASend: %s"),ErrorCode2Text(WSAGetLastError()));
 		AppendLog(msg);
-		DisconnectClient(pContext->m_Socket);
+		DisconnectClient((unsigned int)pContext->m_Socket);
 		return FALSE;
 	}
 	return TRUE;	

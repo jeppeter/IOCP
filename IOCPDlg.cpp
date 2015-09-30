@@ -91,7 +91,7 @@ BOOL CIOCPDlg::OnInitDialog()
 	// Fungerar inte som du vill. 
 	m_Adress=m_iocp.GetHostIP();
 	// Start The timer.. 
-	m_ihTimer=SetTimer(0,500,NULL);
+	m_ihTimer=(int)SetTimer(0,500,NULL);
 	
 	//EnableClientPanel();
 	DisableClientPanel();
@@ -224,7 +224,7 @@ void CIOCPDlg::UpdateList()
 			{
 				pContext->m_ContextLock.Lock();
 				if(m_bRandomConnect&&rand()%10==0)
-					m_iocp.DisconnectClient(pContext->m_Socket);
+					m_iocp.DisconnectClient((unsigned int)pContext->m_Socket);
 				else
 				{
 					
@@ -365,7 +365,11 @@ void CIOCPDlg::OnClickClientlist(NMHDR* pNMHDR, LRESULT* pResult)
 	*pResult = 0;
 }
 
+#ifdef _M_X64
+void CIOCPDlg::OnTimer(UINT_PTR nIDEvent)
+#else
 void CIOCPDlg::OnTimer(UINT nIDEvent) 
+#endif
 {
 	UpdateData();
 	UpdateClientData();
@@ -394,7 +398,7 @@ LRESULT CIOCPDlg::OnNewClient(WPARAM wParam, LPARAM lParam)
 	   {
 		   pContext->m_ContextLock.Lock();
 		   pItem->m_ClientAddress=m_iocp.GetHostAddress(pContext->m_Socket);
-		   pItem->m_ID=pContext->m_Socket;
+		   pItem->m_ID=(unsigned int)pContext->m_Socket;
 		   pItem->m_iNumberOfReceivedMsg=0;
 		   pItem->m_bFileSendMode=FALSE;
 			pItem->m_bFileReceivedMode=FALSE;

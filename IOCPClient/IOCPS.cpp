@@ -234,7 +234,7 @@ int CALLBACK IOCPS::ConnectAcceptCondition(IN LPWSABUF lpCallerId,
 	sockaddr_in* pCaller=(sockaddr_in*)lpCallerId->buf;
 	sockaddr_in* pCallee=(sockaddr_in*)lpCalleeId->buf;
 
-	IOCPS* pThis = reinterpret_cast<IOCPS*>(dwCallbackData);
+	IOCPS* pThis = reinterpret_cast<IOCPS*>((UINT_PTR)dwCallbackData);
 
 	// Do not take connections from ourself. 
 	/*	if ( pCaller->sin_addr.S_un.S_addr == inet_addr("127.0.0.1") ) 
@@ -294,6 +294,7 @@ UINT IOCPS::ListnerThreadProc(LPVOID pParam)
 			}
 			if ( events.lNetworkEvents & FD_ACCEPT)
 			{
+				DWORD dvalue;
 				if ( events.iErrorCode[FD_ACCEPT_BIT] == 0&&pThis->m_bAcceptConnections&&!pThis->m_bShutDown)
 				{
 					//SOCKADDR_IN	SockAddr;
@@ -305,9 +306,10 @@ UINT IOCPS::ListnerThreadProc(LPVOID pParam)
 					//
 					nLen = sizeof(SOCKADDR_IN);
 #ifdef SIMPLESECURITY
+					dvalue = (DWORD)((DWORD_PTR)pThis);
 					clientSocket = WSAAccept(pThis->m_socListen,
 						NULL,
-						&nLen,ConnectAcceptCondition,(DWORD)pThis); 
+						&nLen,(LPCONDITIONPROC)ConnectAcceptCondition,dvalue);
 #else
 					clientSocket = WSAAccept(pThis->m_socListen,
 						NULL,
@@ -366,7 +368,11 @@ UINT IOCPS::IOWorkerThreadProc(LPVOID pParam)
 			BOOL bIORet = GetQueuedCompletionStatus(
 				hCompletionPort,
 				&dwIoSize,
+#ifdef _M_X64
+				(PULONG_PTR)&lpClientContext,
+#else
 				(LPDWORD) &lpClientContext,
+#endif
 				&lpOverlapped, INFINITE);
 			// Simulate workload (for debugging, to find possible reordering)
 			//Sleep(20);
@@ -518,7 +524,7 @@ BOOL IOCPS::AssociateIncomingClientWithContext(SOCKET clientSocket)
 
 		pContext->m_Socket = clientSocket;
 		// M_ID is Used for Delete(). Should we remove this soon ? 
-		pContext->m_ID=clientSocket;
+		pContext->m_ID=(unsigned int)clientSocket;
 
 		/* 
 		* TCP_NODELAY	BOOL=TRUE Disables the "nagle algorithm for send coalescing" which delays
@@ -539,8 +545,9 @@ BOOL IOCPS::AssociateIncomingClientWithContext(SOCKET clientSocket)
 
 		if(AddClientContext(pContext))
 		{	
+			DWORD dvalue = (DWORD)((DWORD_PTR)pContext);
 			// Associate the new socket with a completion port.
-			if (!AssociateSocketWithCompletionPort(clientSocket, m_hCompletionPort, (DWORD) pContext))
+			if (!AssociateSocketWithCompletionPort(clientSocket, m_hCompletionPort, dvalue))
 			{
 				CString msg;
 				msg.Format(_T("AssociateSocketWithCompletionPort Failed: %s"),ErrorCode2Text(WSAGetLastError()));
@@ -564,7 +571,8 @@ BOOL IOCPS::AssociateIncomingClientWithContext(SOCKET clientSocket)
 			CIOCPBuffer *pOverlapBuff =AllocateBuffer(IOInitialize);
 			if(pOverlapBuff!=NULL)
 			{
-				BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, (DWORD) pContext, &pOverlapBuff->m_ol);
+				DWORD dvalue = (DWORD)((DWORD_PTR)pContext);
+				BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, dvalue, &pOverlapBuff->m_ol);
 
 				if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 				{            
@@ -623,7 +631,7 @@ BOOL IOCPS::AddClientContext(ClientContext *mp)
 {
 
 	m_ContextMapLock.Lock();
-	unsigned int KeyID=mp->m_Socket;
+	unsigned int KeyID=(unsigned int)mp->m_Socket;
 
 	//
 	// Check if we already have a such key. 
@@ -1326,9 +1334,10 @@ BOOL IOCPS::PostPackage(ClientContext *pContext,CIOCPBuffer *pOverlapBuff)
 
 	if ( pContext->m_Socket!=INVALID_SOCKET && pOverlapBuff!=NULL )
 	{
+		DWORD dvalue = (DWORD)((DWORD_PTR)pContext);
 		EnterIOLoop(pContext); 	
 		pOverlapBuff->SetOperation(IOPostedPackage);
-		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), (DWORD) pContext, &pOverlapBuff->m_ol);
+		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), dvalue, &pOverlapBuff->m_ol);
 		if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 		{            
 			ReleaseBuffer(pOverlapBuff);
@@ -1481,6 +1490,7 @@ BOOL IOCPS::ASend(ClientContext *pContext,CIOCPBuffer *pOverlapBuff)
 	if(pContext->m_Socket!=INVALID_SOCKET&&pOverlapBuff!=NULL)
 #endif
 	{
+		DWORD dvalue;
 		//
 		// Important!! Notifies that the socket and the structure  
 		// pContext have an Pending IO operation ant should not be deleted.
@@ -1495,7 +1505,8 @@ BOOL IOCPS::ASend(ClientContext *pContext,CIOCPBuffer *pOverlapBuff)
 			SetSendSequenceNumber(pContext,pOverlapBuff); 
 
 
-		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), (DWORD) pContext, &pOverlapBuff->m_ol);
+		dvalue = (DWORD)((DWORD_PTR)pContext);
+		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), dvalue, &pOverlapBuff->m_ol);
 		if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 		{            
 			ReleaseBuffer(pOverlapBuff);
@@ -1520,6 +1531,7 @@ void IOCPS::DisconnectClient(ClientContext *pContext, BOOL bGraceful)
 {	
 	if(pContext!=NULL)
 	{	
+		unsigned int idx;
 		pContext->m_ContextLock.Lock();
 		BOOL bDisconnect=pContext->m_Socket!=INVALID_SOCKET;
 		pContext->m_ContextLock.Unlock();
@@ -1533,9 +1545,11 @@ void IOCPS::DisconnectClient(ClientContext *pContext, BOOL bGraceful)
 			m_ContextMapLock.Lock();
 			BOOL bRet=FALSE;
 			//Remove it from the m_ContextMapLock,, 
-			if(m_ContextMap[pContext->m_Socket]!=NULL)
+			idx = (unsigned int)pContext->m_Socket;
+			if(m_ContextMap[idx]!=NULL)
 			{
-				bRet=m_ContextMap.RemoveKey(pContext->m_Socket);
+				unsigned int key = (unsigned int)pContext->m_Socket;
+				bRet=m_ContextMap.RemoveKey(key);
 				if(bRet)
 					m_NumberOfActiveConnections--;
 			}	
@@ -1565,7 +1579,7 @@ void IOCPS::DisconnectClient(ClientContext *pContext, BOOL bGraceful)
 
 				if (iResult != INVALID_SOCKET)
 				{
-					void* pVoid=(void*)sockAddr.sin_addr.S_un.S_addr; 
+					void* pVoid=(void*)((ULONG_PTR)sockAddr.sin_addr.S_un.S_addr);
 					m_OneIPPerConnectionLock.Lock();
 					POSITION pos=m_OneIPPerConnectionList.Find(pVoid);
 					if ( pos!=NULL )
@@ -1867,6 +1881,7 @@ BOOL IOCPS::ARead(ClientContext *pContext,CIOCPBuffer *pOverlapBuff)
 
 	if(pContext->m_Socket!=INVALID_SOCKET )
 	{
+		DWORD dvalue;
 		if(pOverlapBuff==NULL) 
 			pOverlapBuff=AllocateBuffer(IORead);
 		
@@ -1879,7 +1894,8 @@ BOOL IOCPS::ARead(ClientContext *pContext,CIOCPBuffer *pOverlapBuff)
 		}
 
 		pOverlapBuff->SetOperation(IORead);
-		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, (DWORD) pContext, &pOverlapBuff->m_ol);  	
+		dvalue = (DWORD)((DWORD_PTR)pContext);
+		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, dvalue, &pOverlapBuff->m_ol);  	
 		if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 		{            
 			ReleaseBuffer(pOverlapBuff);
@@ -1911,6 +1927,7 @@ BOOL IOCPS::AZeroByteRead(ClientContext *pContext, CIOCPBuffer *pOverlapBuff)
 
 	if(pContext->m_Socket!=INVALID_SOCKET )
 	{
+		DWORD dvalue;
 		if(pOverlapBuff==NULL) 
 			pOverlapBuff=AllocateBuffer(IOZeroByteRead);
 		
@@ -1923,7 +1940,8 @@ BOOL IOCPS::AZeroByteRead(ClientContext *pContext, CIOCPBuffer *pOverlapBuff)
 
 		pOverlapBuff->SetOperation(IOZeroByteRead);
 
-		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, (DWORD) pContext, &pOverlapBuff->m_ol); 	
+		dvalue = (DWORD)((DWORD_PTR)pContext);
+		BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, 0, dvalue, &pOverlapBuff->m_ol); 	
 		if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 		{            
 			ReleaseBuffer(pOverlapBuff);
@@ -2084,7 +2102,7 @@ void IOCPS::DisconnectAll()
 {
 	m_ContextMapLock.Lock();
 	// First Delete all the objects.
-	int numberofItems=m_ContextMap.GetCount();
+	int numberofItems=(int)m_ContextMap.GetCount();
 	POSITION pos = m_ContextMap.GetStartPosition ();
 	while (pos != NULL) 
 	{
@@ -2191,7 +2209,7 @@ BOOL IOCPS::SetWorkers(int nThreads)
 	int iNumberToStart=0;
 
 	m_WorkerThreadMapLock.Lock();
-	int iNumberOfThreads=m_WorkerThreadMap.GetCount();
+	int iNumberOfThreads=(int)m_WorkerThreadMap.GetCount();
 	m_WorkerThreadMapLock.Unlock();
 
 	if(nThreads<iNumberOfThreads)
@@ -2520,7 +2538,7 @@ CIOCPBuffer *IOCPS::AllocateBuffer(int nType)
 	//
 
 	m_FreeBufferListLock.Lock();
-	int dummy=m_FreeBufferList.GetCount();
+	int dummy=(int)m_FreeBufferList.GetCount();
 	if(!m_FreeBufferList.IsEmpty())
 	{
 		pBuff=(CIOCPBuffer *)m_FreeBufferList.RemoveHead();
@@ -2978,7 +2996,7 @@ BOOL IOCPS::SetupIOWorkers()
 			return FALSE;
 		}
 	}
-	m_nIOWorkers=m_IOWorkerList.GetCount();
+	m_nIOWorkers=(int)m_IOWorkerList.GetCount();
 	return TRUE; 
 }
 
@@ -3285,7 +3303,7 @@ BOOL IOCPS::PrepareSendFile(SOCKET clientSocket, CString Filename)
 	BOOL bRet=FALSE;
 	m_ContextMapLock.Lock();
 	ClientContext* pContext=NULL;
-	pContext = FindClient(clientSocket);
+	pContext = FindClient((unsigned int)clientSocket);
 	if(pContext!=NULL)
 		bRet=PrepareSendFile(pContext, (LPCTSTR)Filename);
 	m_ContextMapLock.Unlock();
@@ -3350,7 +3368,7 @@ BOOL IOCPS::PrepareSendFile(ClientContext *pContext, LPCTSTR lpszFilename)
 		{
 			if(pOverlapBuff->CreatePackage(1,iFileSize,sFileName))
 			{
-
+				DWORD dvalue;
 				//
 				// If we are sending in order
 				//
@@ -3363,7 +3381,8 @@ BOOL IOCPS::PrepareSendFile(ClientContext *pContext, LPCTSTR lpszFilename)
 				// This is necessary to avoid Access violation. 
 				//
 				EnterIOLoop(pContext); 
-				BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), (DWORD) pContext, &pOverlapBuff->m_ol);
+				dvalue = (DWORD)((DWORD_PTR)pContext);
+				BOOL bSuccess = PostQueuedCompletionStatus(m_hCompletionPort, pOverlapBuff->GetUsed(), dvalue, &pOverlapBuff->m_ol);
 				if ( (!bSuccess && GetLastError( ) != ERROR_IO_PENDING))
 				{            
 					ReleaseBuffer(pOverlapBuff);
@@ -3399,7 +3418,7 @@ BOOL IOCPS::DisableSendFile(SOCKET clientSocket)
 	BOOL bRet=FALSE;
 	m_ContextMapLock.Lock();
 	ClientContext* pContext = NULL;
-	pContext=FindClient(clientSocket);
+	pContext=FindClient((unsigned int)clientSocket);
 	if(pContext!=NULL)
 		bRet=DisableSendFile(pContext);
 	m_ContextMapLock.Unlock();
@@ -3449,7 +3468,7 @@ BOOL IOCPS::DisableReceiveFile(SOCKET clientSocket)
 	BOOL bRet=FALSE;
 	m_ContextMapLock.Lock();
 	ClientContext* pContext = NULL;
-	pContext=FindClient(clientSocket);
+	pContext=FindClient((unsigned int)clientSocket);
 	if(pContext!=NULL)
 		bRet=DisableReceiveFile(pContext);
 	m_ContextMapLock.Unlock();
@@ -3500,7 +3519,7 @@ BOOL IOCPS::PrepareReceiveFile(SOCKET clientSocket, LPCTSTR lpszFilename,DWORD d
 	BOOL bRet=FALSE;
 	m_ContextMapLock.Lock();
 	ClientContext* pContext = NULL;
-	pContext=FindClient(clientSocket);
+	pContext=FindClient((unsigned int)clientSocket);
 	if(pContext!=NULL)
 		bRet=PrepareReceiveFile(pContext,lpszFilename,dwFileSize);
 	m_ContextMapLock.Unlock();
@@ -3709,7 +3728,7 @@ BOOL IOCPS::StartSendFile(SOCKET clientSocket)
 	BOOL bRet=FALSE;
 	m_ContextMapLock.Lock();
 	ClientContext* pContext = NULL;
-	pContext=FindClient(clientSocket);
+	pContext=FindClient((unsigned int)clientSocket);
 	if(pContext!=NULL)
 		bRet=StartSendFile(pContext);
 	m_ContextMapLock.Unlock();
@@ -3753,7 +3772,7 @@ inline BOOL IOCPS::IsAlreadyConnected(sockaddr_in* pCaller)
 	if ( !m_bOneIPPerConnection )
 		return FALSE;
 
-	void* pVoid=(void*)pCaller->sin_addr.S_un.S_addr; 
+	void* pVoid=(void*)((ULONG_PTR)pCaller->sin_addr.S_un.S_addr); 
 	m_OneIPPerConnectionLock.Lock();
 	POSITION pos=m_OneIPPerConnectionList.Find(pVoid);
 
@@ -3790,7 +3809,7 @@ BOOL IOCPS::IsInBannedList(sockaddr_in* pCaller)
 
 	// Load the value of IP (32bit) inside the 
 	// a void pointer of size 32. 
-	void* pVoid=(void*)pCaller->sin_addr.S_un.S_addr; 
+	void* pVoid=(void*)((ULONG_PTR)pCaller->sin_addr.S_un.S_addr); 
 
 	m_BanIPLock.Lock();
 	if ( !m_BanIPList.IsEmpty() )
@@ -3847,7 +3866,7 @@ void IOCPS::AddToBanList(SOCKET &Socket)
 	{
 		m_BanIPLock.Lock();
 		// We save our unsigned Long inside a Void pointer of size 32. 
-		void * pData=(void*) sockAddr.sin_addr.S_un.S_addr;
+		void * pData=(void*) ((ULONG_PTR)sockAddr.sin_addr.S_un.S_addr);
 		m_BanIPList.AddHead(pData);
 		m_BanIPLock.Unlock();
 

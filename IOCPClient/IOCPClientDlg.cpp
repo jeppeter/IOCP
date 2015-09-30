@@ -106,7 +106,7 @@ BOOL CIOCPClientDlg::OnInitDialog()
 	StartTheSystem();
 	
 	// Start The timer.. 
-	m_ihTimer=SetTimer(0,500,NULL);
+	m_ihTimer=(int)SetTimer(0,500,NULL);
 	
 	EnableClientPanel();
 	
@@ -414,7 +414,11 @@ void CIOCPClientDlg::OnClickClientlist(NMHDR* pNMHDR, LRESULT* pResult)
 	*pResult = 0;
 }
 
-void CIOCPClientDlg::OnTimer(UINT nIDEvent) 
+#ifdef _M_X64
+void CIOCPClientDlg::OnTimer(UINT_PTR nIDEvent) 
+#else
+void CIOCPClientDlg::OnTimer(UINT nIDEvent)
+#endif
 {
 	UpdateData();
 	UpdateClientData();
@@ -446,7 +450,7 @@ LRESULT CIOCPClientDlg::OnNewClient(WPARAM wParam, LPARAM lParam)
 	   {
 		   pContext->m_ContextLock.Lock();
 		   pItem->m_ClientAddress=m_iocp.GetHostAddress(pContext->m_Socket);
-		   pItem->m_ID=pContext->m_Socket;
+		   pItem->m_ID=(unsigned int)pContext->m_Socket;
 		   pItem->m_iNumberOfReceivedMsg=0;
 #ifdef TRANSFERFILEFUNCTIONALITY	
 		   pItem->m_iMaxFileBytes=pContext->m_iMaxFileBytes;

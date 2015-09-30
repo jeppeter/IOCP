@@ -51,7 +51,7 @@ template<>
 inline UINT AFXAPI HashKey(unsigned int& key)
 {
 	// default identity hash - works for most primitive values
-	return ((UINT)(void*)(unsigned int)key) >> 4;
+	return ((UINT)(unsigned int)key) >> 4;
 }
 
 typedef CMap<unsigned int, unsigned int&, ClientContext*, ClientContext* > ContextMap;
