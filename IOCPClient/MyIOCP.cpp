@@ -267,7 +267,7 @@ BOOL MyIOCP::BuildPackageAndSend(ClientContext *pContext, CString sText)
 			return ASend(pContext,pOverlapBuff);
 			else
 			{
-				AppendLog("CreatePackage(0,sText) Failed in BuildPackageAndSend");
+				AppendLog(_T("CreatePackage(0,sText) Failed in BuildPackageAndSend"));
 				ReleaseBuffer(pOverlapBuff);
 				return FALSE;
 			}
@@ -304,7 +304,7 @@ BOOL MyIOCP::BuildPackageAndSendToAll(CString sText)
 			return ASendToAll(pOverlapBuff);
 			else
 			{
-				AppendLog("CreatePackage(0,sText) Failed in BuildPackageAndSendToAll");
+				AppendLog(_T("CreatePackage(0,sText) Failed in BuildPackageAndSendToAll"));
 				ReleaseBuffer(pOverlapBuff);
 				return FALSE;
 			}

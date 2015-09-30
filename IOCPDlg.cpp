@@ -489,7 +489,7 @@ LRESULT CIOCPDlg::OnClientDisconnected(WPARAM wParam, LPARAM lParam)
 
 LRESULT CIOCPDlg::OnAppendLog(WPARAM wParam, LPARAM lParam)
 {
-	char* msg = reinterpret_cast<char*>(lParam);
+	TCHAR* msg = reinterpret_cast<TCHAR*>(lParam);
 	if(msg!=NULL)
 	{
 		
